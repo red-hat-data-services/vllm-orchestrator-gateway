@@ -31,7 +31,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 ## Gateway builder #########################################################
 FROM rust-builder AS gateway-builder
 
-COPY *.toml /app/
+COPY *.toml Cargo.lock /app/
 COPY src/ /app/src/
 # COPY config/config.yaml /app/config/config.yaml
 
