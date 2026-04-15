@@ -32,12 +32,13 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 FROM rust-builder AS gateway-builder
 
 COPY *.toml /app/
+COPY Cargo.lock /app/
 COPY src/ /app/src/
 # COPY config/config.yaml /app/config/config.yaml
 
 WORKDIR /app
 
-RUN cargo install --root /app/ --path .
+RUN cargo install --locked --root /app/ --path .
 
 ## Tests stage ##################################################################
 FROM gateway-builder AS tests
