@@ -1,1 +1,6 @@
 /target
+
+# Hermeto local testing artifacts
+.hermeto/
+.hermeto.env
+hermeto-test.json
