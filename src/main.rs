@@ -19,6 +19,7 @@ use std::{
 };
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
+use tracing_subscriber::EnvFilter;
 use anyhow::Context;
 
 mod api;
@@ -57,18 +58,19 @@ fn get_orchestrator_detectors(
 
 #[tokio::main]
 async fn main() {
-    let config_path = env::var("GATEWAY_CONFIG").unwrap_or("config/config.yaml".to_string());
-    tracing::debug!("Using config path: {}", config_path);
-    let gateway_config = config::read_config(&config_path);
-    tracing::debug!("Loaded gateway config: {:?}", gateway_config);
-    validate_registered_detectors(&gateway_config);
-    tracing::debug!("Validated registered detectors");
-
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .compact()
         .init();
+
+    let config_path = env::var("GATEWAY_CONFIG").unwrap_or("config/config.yaml".to_string());
+    tracing::debug!("Using config path: {}", config_path);
+    let gateway_config = config::read_config(&config_path);
+    validate_registered_detectors(&gateway_config);
 
     let (client, scheme) =
         build_orchestrator_client(&gateway_config.orchestrator.host)
@@ -122,7 +124,7 @@ async fn main() {
         }
     }
 
-    let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     tracing::debug!("Using host: {}", host);
 
     let ip: IpAddr = host.parse().expect("Failed to parse host IP address");
@@ -160,8 +162,6 @@ async fn handle_chat_completions(
     orchestrator_client: Arc<reqwest::Client>,
     scheme: String,
 ) -> Result<Response, (StatusCode, String)> {
-    tracing::debug!("handle_chat_completions called with payload: {:?}", payload);
-
     // Check if streaming is requested
     let is_streaming = payload
         .as_object()
@@ -207,11 +207,8 @@ async fn handle_non_streaming_generation(
     orchestrator_client: Arc<reqwest::Client>,
     scheme: String,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    tracing::debug!("handle_non_streaming_generation called with payload: {:?}", payload);
-
     let orchestrator_detectors =
         get_orchestrator_detectors(detectors.clone(), gateway_config.detectors.clone());
-    tracing::debug!("Orchestrator detectors: {:?}", orchestrator_detectors);
 
     let mut payload = payload.as_object_mut();
 
@@ -234,8 +231,6 @@ async fn handle_non_streaming_generation(
         "detectors".to_string(),
         serde_json::to_value(&orchestrator_detectors).unwrap(),
     );
-    tracing::debug!("Payload after inserting detectors: {:?}", payload);
-
     let response_result =
         orchestrator_post_request(payload, &headers, &url, &orchestrator_client).await;
 
@@ -244,7 +239,7 @@ async fn handle_non_streaming_generation(
             let detection =
                 check_payload_detections(&orchestrator_response.detections, route_fallback_message);
             if let Some(message) = detection {
-                tracing::debug!("Fallback message triggered: {:?}", message);
+                tracing::debug!("Fallback message triggered");
                 orchestrator_response.choices = vec![message];
             }
             Ok(Json(json!(orchestrator_response)).into_response())
@@ -265,11 +260,8 @@ async fn handle_streaming_generation(
     orchestrator_client: Arc<reqwest::Client>,
     scheme: String,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    tracing::debug!("handle_streaming_generation called with payload: {:?}", payload);
-
     let orchestrator_detectors =
         get_orchestrator_detectors(detectors.clone(), gateway_config.detectors.clone());
-    tracing::debug!("Orchestrator detectors: {:?}", orchestrator_detectors);
 
     let mut payload = payload.as_object_mut();
 
@@ -292,8 +284,6 @@ async fn handle_streaming_generation(
         "detectors".to_string(),
         serde_json::to_value(&orchestrator_detectors).unwrap(),
     );
-    tracing::debug!("Payload after inserting detectors: {:?}", payload);
-
     let response_result =
         orchestrator_streaming_request(payload, &headers, &url, &orchestrator_client).await;
 
@@ -411,23 +401,13 @@ async fn orchestrator_post_request(
     url: &str,
     client: &reqwest::Client,
 ) -> Result<OrchestratorResponse, anyhow::Error> {
-    tracing::debug!(
-        "Sending POST request to {} with payload: {:?}",
-        url,
-        payload
-    );
+    tracing::debug!("Sending POST request to {}", url);
 
     let mut req = client.post(url).json(&payload);
 
-    // Forward authorization headers
     for (name, value) in headers.iter() {
-        // filter out headers t
-        tracing::debug!("Header {}: {:?}", name, value);
         let name_str = name.as_str().to_ascii_lowercase();
-        if name_str == "authorization" {
-            req = req.header(name, value);
-        }
-        if name_str.starts_with("x-forwarded") {
+        if name_str == "authorization" || name_str.starts_with("x-forwarded") {
             req = req.header(name, value);
         }
     }
@@ -458,20 +438,17 @@ async fn orchestrator_post_request(
         tracing::error!("Failed to read response body: {:?}", e);
         String::new()
     });
-    tracing::debug!("Received response status: {}, body: {}", status, text);
+    tracing::debug!("Received response status: {}", status);
 
     if !status.is_success() {
-        // Return the error with the status code and response body
-        tracing::error!("Orchestrator returned error status {}: {}", status, text);
+        tracing::error!("Orchestrator returned error status {}", status);
         return Err(anyhow::anyhow!(
-            "Orchestrator returned error status {}: {}",
+            "Orchestrator returned error status {}",
             status,
-            text
         ));
     }
 
     let json: serde_json::Value = serde_json::from_str(&text)?;
-    tracing::debug!("Parsed JSON response: {:?}", json);
     Ok(serde_json::from_value(json).expect("unexpected json response from request"))
 }
 
@@ -481,22 +458,13 @@ async fn orchestrator_streaming_request(
     url: &str,
     client: &reqwest::Client,
 ) -> Result<impl futures::Stream<Item = Result<String, anyhow::Error>>, anyhow::Error> {
-    tracing::debug!(
-        "Sending streaming POST request to {} with payload: {:?}",
-        url,
-        payload
-    );
+    tracing::debug!("Sending streaming POST request to {}", url);
 
     let mut req = client.post(url).json(&payload);
 
-    // Forward authorization headers
     for (name, value) in headers.iter() {
-        tracing::debug!("Header {}: {:?}", name, value);
         let name_str = name.as_str().to_ascii_lowercase();
-        if name_str == "authorization" {
-            req = req.header(name, value);
-        }
-        if name_str.starts_with("x-forwarded") {
+        if name_str == "authorization" || name_str.starts_with("x-forwarded") {
             req = req.header(name, value);
         }
     }
