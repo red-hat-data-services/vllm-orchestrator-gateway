@@ -39,7 +39,7 @@ RUN cargo fmt --check
 
 ## Release Image ################################################################
 
-FROM registry.redhat.io/ubi9/ubi-minimal-pqc@sha256:8a842ac769de709143e4edeace516f2008dfdc431b64670ad3353fa323b44736 AS gateway-release
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc@sha256:3809cd52a2b09bd49fe0b6d8067d7fda7bd07138f88708e7a2928ef0014c7122 AS gateway-release
 ENV GATEWAY_CONFIG=/app/config/config.yaml
 COPY config/config.yaml /app/config/config.yaml
 
