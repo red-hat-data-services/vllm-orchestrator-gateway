@@ -124,7 +124,7 @@ async fn main() {
         }
     }
 
-    let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     tracing::debug!("Using host: {}", host);
 
     let ip: IpAddr = host.parse().expect("Failed to parse host IP address");
