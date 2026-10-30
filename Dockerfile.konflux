@@ -1,5 +1,5 @@
-ARG UBI_MINIMAL_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal
-ARG UBI_BASE_IMAGE_TAG=latest
+ARG UBI_MINIMAL_BASE_IMAGE=registry.redhat.io/ubi9/ubi-minimal-pqc
+ARG UBI_BASE_IMAGE_TAG=latest@sha256:58d09489b1d9123e24d691e47af6c390fe5e08f50c7f4f2967bb64df7ab72aa0
 
 ## Rust builder ################################################################
 # Specific debian version so that compatible glibc version is used
