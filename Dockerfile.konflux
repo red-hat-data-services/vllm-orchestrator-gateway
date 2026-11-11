@@ -1,5 +1,5 @@
 ARG UBI_MINIMAL_BASE_IMAGE=registry.redhat.io/ubi9/ubi-minimal-pqc
-ARG UBI_BASE_IMAGE_TAG=latest@sha256:58d09489b1d9123e24d691e47af6c390fe5e08f50c7f4f2967bb64df7ab72aa0
+ARG UBI_BASE_IMAGE_TAG=latest@sha256:eb807555968d40a35c815329eec6ef52b56a8bb3e6f06c25f7440ead905f8c74
 
 ## Rust builder ################################################################
 FROM ${UBI_MINIMAL_BASE_IMAGE}:${UBI_BASE_IMAGE_TAG} AS rust-builder
